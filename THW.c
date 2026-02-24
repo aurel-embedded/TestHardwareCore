@@ -4,8 +4,6 @@
  *  Created on: 24 févr. 2026
  *      Author: AurelienPajadon
  */
-#include <TestHardwareCore/interfaces/thw_io_if.h>
-
 #ifdef MODE_THW
 
 #include <stdbool.h>
@@ -267,7 +265,7 @@ static void thw_rfs_tsk_fn(void *arg)
  ******************************************************************************/
 HAL_StatusTypeDef THW_init(thw_io_if_t* _io, void (*_entryTestFn)(void*))
 {
-	if(_io == NULL || _io->init == NULL)
+	if(_io == NULL || _io->init == NULL || _io->readLine == NULL || _io->write == NULL)
 	    return HAL_ERROR;
 
 	if(!_io->init())
