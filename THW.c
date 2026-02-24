@@ -1,22 +1,35 @@
 /*
- * THW_hardwareTest.c
+ * THW.c
  *
- *  Created on: 7 nov. 2022
- *      Author: apajadon
+ *  Created on: 24 févr. 2026
+ *      Author: AurelienPajadon
  */
+
 #ifdef MODE_THW
 
-#include <main.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <Config/task_config.h>
-#include "THW_api.h"
-#include <Cmp/Console/console.h>
+#include <stdio.h>
+#include <stdarg.h>
 
-// Local
-static bool skipAutoRefresh = false;
+#include <TestHardwareCore/include/thw_transport_if.h>
+
+#include "THW_api.h"
+#include <Config/task_config.h>
+
+
+static struct{
+	// Dependency Injection
+	thw_transport_if_t *transport;
+
+	// Auto Refresh management
+	bool skipAutoRefresh;
+
+
+}thw_ctx;
+
 
 //-----------------------------------------------------------------------------
 // THREAD RX
@@ -86,7 +99,7 @@ static void thw_tsk_fn(void *argument)
 		osDelay(100);
 
 		// Raz Auto Refresh flag
-		skipAutoRefresh = false;
+		thw_ctx.skipAutoRefresh = false;
 
 		// Get User Choice
 		//----------------------
@@ -116,7 +129,7 @@ static void thw_tsk_fn(void *argument)
 
 			// 		Display
 			//----------------------
-			if (skipAutoRefresh == false){
+			if (thw_ctx.skipAutoRefresh == false){
 				THW_clearScreen();
 				if(thw_actualMenu.displayMenu != NULL)
 					thw_actualMenu.displayMenu();
@@ -180,7 +193,7 @@ static void manageChoice(char code)
 
 		if (visibleIndex == code)
 		{
-			skipAutoRefresh = item->skipAutoRefresh;
+			thw_ctx.skipAutoRefresh = item->skipAutoRefresh;
 			item->pActionFn(item->info);
 			return;
 		}
@@ -252,14 +265,20 @@ static void thw_rfs_tsk_fn(void *arg)
  ** Function name:		THW_init
  ** Descriptions:		THW component Init
  ******************************************************************************/
-HAL_StatusTypeDef THW_init(void (*_entryTestFn)(void*))
+HAL_StatusTypeDef THW_init(thw_transport_if_t *transport, void (*_entryTestFn)(void*))
 {
+	if(transport == NULL)
+		return HAL_ERROR;
+
+	// Save transport interface
+	thw_ctx.transport = transport;
+
 	// Check parameter
 	if (_entryTestFn == NULL)
 		return HAL_ERROR;
 
 	// Low Level Init
-	if(console_init() != HAL_OK){
+	if(thw_ctx.transport->init == NULL || !thw_ctx.transport->init()){
 		return HAL_ERROR;
 	}
 
@@ -276,6 +295,29 @@ HAL_StatusTypeDef THW_init(void (*_entryTestFn)(void*))
 
 }
 
+static char console_fmtBuf[256];
+
+//-----------------------------------------------------------------------------
+/// \fn 		THW_printf
+/// \param[in] fmt : format string (printf style)
+/// \return HAL status
+/// \brief THW_printf: printf implementation for THW, using transport send function
+//-----------------------------------------------------------------------------
+HAL_StatusTypeDef THW_printf(const char *fmt, ...)
+{
+	va_list argp;
+	int len;
+
+	va_start(argp, fmt);
+
+	// build string
+	if(vsnprintf(console_fmtBuf, sizeof(console_fmtBuf), fmt, argp) >= 0){
+		len = strlen((char*)console_fmtBuf);
+		thw_ctx.transport->write((uint8_t*)console_fmtBuf, len);
+	}
+	va_end(argp);
+	return HAL_OK;
+}
 
 
 /******************************************************************************

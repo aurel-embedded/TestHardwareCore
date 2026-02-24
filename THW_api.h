@@ -1,24 +1,21 @@
 /*
- * THW_hardwareTest_API.h
+ * THW_api.h
  *
- *  Created on: 7 nov. 2022
- *      Author: apajadon
+ *  Created on: 24 févr. 2026
+ *      Author: AurelienPajadon
  */
 
-#ifndef USER_THW_THW_HARDWARETEST_API_H_
-#define USER_THW_THW_HARDWARETEST_API_H_
-
-#include <stdint.h>
-#include <main.h>
-
+#ifndef TESTHARDWARECORE_THW_API_H_
+#define TESTHARDWARECORE_THW_API_H_
 
 #include <stdint.h>
 #include <stdarg.h>
 #include <stdbool.h>
-#include <main.h>
-#include <Tools/serial_VT100.h>
+
 #include <Config/APP.h>
+#include <Tools/serial_VT100.h>
 #include <Cmp/Console/console.h>
+#include <TestHardwareCore/include/thw_transport_if.h>
 
 //----------------------------------------------------------------------
 // MENU
@@ -61,8 +58,8 @@ typedef enum{
 extern void THW_displayActionMenu(st_thw_menuItem *pMenuItems, uint8_t menuItemsQty);
 
 // Definition de macros de gestion de l'ecran
-#define THW_printf(...)			console_printf( __VA_ARGS__)
-#define THW_printfCL(...)		console_printf(__VA_ARGS__ VT100_COLOR_RESET"\r\n")
+#define THW_printf(...)			THW_printf( __VA_ARGS__)
+#define THW_printfCL(...)		THW_printf(__VA_ARGS__ VT100_COLOR_RESET"\r\n")
 #define THW_clearScreen()		THW_printf(VT100_CLEARSCR)
 #define THW_clearEndOfScreen()	THW_printf(VT100_CLEAREOS)
 #define THW_textColor(Color) 	THW_printf(Color)
@@ -76,11 +73,11 @@ extern void THW_displayActionMenu(st_thw_menuItem *pMenuItems, uint8_t menuItems
 extern st_thw_actualMenu thw_actualMenu;	// Structure sur le menu actuellement utilisé
 
 
-HAL_StatusTypeDef THW_init(void (*entryTestFn)(void*));
+HAL_StatusTypeDef THW_init(thw_transport_if_t *transport, void (*entryTestFn)(void*));
 
 
 // For project with touchGfx, faking the system calls
 void MX_TouchGFX_Init(void);
 void MX_TouchGFX_PreOSInit(void);
 
-#endif /* USER_THW_THW_HARDWARETEST_API_H_ */
+#endif /* TESTHARDWARECORE_THW_API_H_ */
