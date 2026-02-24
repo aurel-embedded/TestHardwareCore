@@ -72,6 +72,7 @@ static void (*thw_entryTestFn)(void*) = NULL;
 static void thw_tsk_fn(void *argument)
 {
 	uint32_t 	userChoice;
+	char rxLine[128];
 
 	THW_printf(VT100_NORMAL);
 
@@ -101,11 +102,11 @@ static void thw_tsk_fn(void *argument)
 
 		// Get User Choice
 		//----------------------
-		if(thw_ctx.io->readLine(console_rxBuffer, sizeof(console_rxBuffer)) == true)
+		if(thw_ctx.io->readLine(rxLine, sizeof(rxLine)))
 		{
 			// 	Manage user Choice
 			//----------------------
-			userChoice = atoi((char*)console_rxBuffer);
+			userChoice = atoi(rxLine);
 
 			// Capture current menu reference before executing action
 			const void* prevMenuTab  = thw_actualMenu.menu.tab;
@@ -265,7 +266,7 @@ static void thw_rfs_tsk_fn(void *arg)
  ******************************************************************************/
 thw_status_t THW_init(thw_io_if_t* _io, void (*_entryTestFn)(void*))
 {
-	if(_io == NULL || _io->init == NULL || _io->readLine == NULL || _io->write == NULL)
+	if(_io == NULL || _io->init == NULL || _io->readLine == NULL || _io->write == NULL || _io->deinit == NULL)
 	    return THW_STATUS_ERROR;
 
 	if(!_io->init())

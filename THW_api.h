@@ -59,9 +59,9 @@ typedef enum{
 extern void THW_displayActionMenu(st_thw_menuItem *pMenuItems, uint8_t menuItemsQty);
 
 thw_status_t THW_init(thw_io_if_t* io, void (*entryTestFn)(void*));
+thw_status_t THW_printf(const char *fmt, ...);
 
 // Definition de macros de gestion de l'ecran
-#define THW_printf(...)			THW_printf( __VA_ARGS__)
 #define THW_printfCL(...)		THW_printf(__VA_ARGS__ VT100_COLOR_RESET"\r\n")
 #define THW_clearScreen()		THW_printf(VT100_CLEARSCR)
 #define THW_clearEndOfScreen()	THW_printf(VT100_CLEAREOS)
