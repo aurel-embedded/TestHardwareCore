@@ -16,6 +16,7 @@
 #include <Tools/serial_VT100.h>
 #include <Cmp/Console/console.h>
 #include <TestHardwareCore/include/thw_transport_if.h>
+#include <TestHardwareCore/interfaces/thw_io_if.h>
 
 //----------------------------------------------------------------------
 // MENU
@@ -73,7 +74,7 @@ extern void THW_displayActionMenu(st_thw_menuItem *pMenuItems, uint8_t menuItems
 extern st_thw_actualMenu thw_actualMenu;	// Structure sur le menu actuellement utilisé
 
 
-HAL_StatusTypeDef THW_init(thw_transport_if_t *transport, void (*entryTestFn)(void*));
+HAL_StatusTypeDef THW_init(thw_io_if_t* io, void (*entryTestFn)(void*));
 
 
 // For project with touchGfx, faking the system calls

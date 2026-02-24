@@ -4,6 +4,7 @@
  *  Created on: 24 févr. 2026
  *      Author: AurelienPajadon
  */
+#include <TestHardwareCore/interfaces/thw_io_if.h>
 
 #ifdef MODE_THW
 
@@ -14,16 +15,14 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-#include <TestHardwareCore/include/thw_transport_if.h>
-#include <Plateform/thw_platform_console_view.h>
-
+#include <TestHardwareCore/interfaces/thw_io_if.h>
 #include "THW_api.h"
 #include <Config/task_config.h>
 
 
 static struct{
 	// Dependency Injection
-	thw_transport_if_t *transport;
+	thw_io_if_t* io;
 
 	// Auto Refresh management
 	bool skipAutoRefresh;
@@ -266,24 +265,19 @@ static void thw_rfs_tsk_fn(void *arg)
  ** Function name:		THW_init
  ** Descriptions:		THW component Init
  ******************************************************************************/
-HAL_StatusTypeDef THW_init(thw_transport_if_t *transport, void (*_entryTestFn)(void*))
+HAL_StatusTypeDef THW_init(thw_io_if_t* _io, void (*_entryTestFn)(void*))
 {
-	if(transport == NULL)
-		return HAL_ERROR;
+	if(_io == NULL || _io->init == NULL)
+	    return HAL_ERROR;
 
-	// Save transport interface
-	thw_ctx.transport = transport;
-	thw_ctx.transport->init();
-	thw_console_init(transport);
+	if(!_io->init())
+	    return HAL_ERROR;
+
+	thw_ctx.io = _io;
 
 	// Check parameter
 	if (_entryTestFn == NULL)
 		return HAL_ERROR;
-
-	// Low Level Init
-	if(thw_ctx.transport->init == NULL || !thw_ctx.transport->init()){
-		return HAL_ERROR;
-	}
 
     // Save entry function
     thw_entryTestFn = _entryTestFn;
@@ -309,14 +303,12 @@ static char console_fmtBuf[256];
 HAL_StatusTypeDef THW_printf(const char *fmt, ...)
 {
 	va_list argp;
-	int len;
 
 	va_start(argp, fmt);
 
 	// build string
 	if(vsnprintf(console_fmtBuf, sizeof(console_fmtBuf), fmt, argp) >= 0){
-		len = strlen((char*)console_fmtBuf);
-		thw_ctx.transport->write((uint8_t*)console_fmtBuf, len);
+		thw_ctx.io->write(console_fmtBuf);
 	}
 	va_end(argp);
 	return HAL_OK;
