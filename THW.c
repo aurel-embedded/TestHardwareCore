@@ -15,6 +15,7 @@
 #include <stdarg.h>
 
 #include <TestHardwareCore/include/thw_transport_if.h>
+#include <Plateform/thw_platform_console_view.h>
 
 #include "THW_api.h"
 #include <Config/task_config.h>
@@ -103,7 +104,7 @@ static void thw_tsk_fn(void *argument)
 
 		// Get User Choice
 		//----------------------
-		if(console_manageRx() == true){
+		if(thw_console_pollLine(console_rxBuffer, sizeof(console_rxBuffer)) == true){
 
 			// 	Manage user Choice
 			//----------------------
@@ -272,6 +273,8 @@ HAL_StatusTypeDef THW_init(thw_transport_if_t *transport, void (*_entryTestFn)(v
 
 	// Save transport interface
 	thw_ctx.transport = transport;
+	thw_ctx.transport->init();
+	thw_console_init(transport);
 
 	// Check parameter
 	if (_entryTestFn == NULL)
