@@ -22,10 +22,8 @@ static struct{
 	// Dependency Injection
 	thw_io_if_t* io;
 
-	// Auto Refresh management
-	bool skipAutoRefresh;
-
-
+	// Refresh Task management
+	uint32_t lastRefreshTick;
 }thw_ctx;
 
 
@@ -40,19 +38,6 @@ const osThreadAttr_t thw_tsk_attr = {
 };
 static void thw_tsk_fn(void *arg);
 
-//-----------------------------------------------------------------------------
-// THREAD Refresh
-//-----------------------------------------------------------------------------
-osThreadId_t thw_rfs_tsk_id;
-const osThreadAttr_t thw_rfs_tsk_attr = {
-		.name = "thw_rfs_tsk",
-		.stack_size = TSK_CFG__STACK__TSK_THW_RFS,
-		.priority = TSK_CFG__PRIO__TSK_THW_RFS,
-};
-static void thw_rfs_tsk_fn(void *arg);
-bool 		thw_refreshIsRunning = false;
-static thw_status_t thw_startRefreshTask(void);
-static thw_status_t thw_stopRefreshTask(void);
 
 //------------------------------------------------------------------------------
 // MENU
@@ -97,9 +82,6 @@ static void thw_tsk_fn(void *argument)
 	while(1){
 		osDelay(100);
 
-		// Raz Auto Refresh flag
-		thw_ctx.skipAutoRefresh = false;
-
 		// Get User Choice
 		//----------------------
 		if(thw_ctx.io->readLine(rxLine, sizeof(rxLine)))
@@ -128,23 +110,24 @@ static void thw_tsk_fn(void *argument)
 
 			// 		Display
 			//----------------------
-			if (thw_ctx.skipAutoRefresh == false){
-				THW_clearScreen();
-				if(thw_actualMenu.displayMenu != NULL)
-					thw_actualMenu.displayMenu();
-				displayMenuAction();
-			}else{
-				THW_restoreCurPos();			// Restoration position curseur
-				THW_printf(VT100_CLEAREOL);		// Clear to end of line
-				THW_restoreCurPos();			// Restoration position curseur
-			}
+			THW_clearScreen();
+			if(thw_actualMenu.displayMenu != NULL)
+				thw_actualMenu.displayMenu();
+			displayMenuAction();
+			THW_saveCurPos();
+		}
 
-			// 		Refresh
-			//----------------------
-			if(thw_actualMenu.refreshFn != NULL)
-				thw_startRefreshTask();
-			else
-				thw_stopRefreshTask();
+		// Refresh auto if needed
+		if(thw_actualMenu.refreshFn != NULL)
+		{
+		    uint32_t now = osKernelGetTickCount();
+		    if(now - thw_ctx.lastRefreshTick >= thw_actualMenu.refreshPeriodInMs)
+		    {
+		    	thw_ctx.lastRefreshTick = now;
+		    	THW_saveCurPos();
+		        thw_actualMenu.refreshFn();
+				THW_restoreCurPos();
+		    }
 		}
 	}
 }
@@ -192,7 +175,6 @@ static void manageChoice(char code)
 
 		if (visibleIndex == code)
 		{
-			thw_ctx.skipAutoRefresh = item->skipAutoRefresh;
 			item->pActionFn(item->info);
 			return;
 		}
@@ -227,35 +209,7 @@ static void displayMenuAction(void)
 	THW_printf("%2d - Back\r\n", thw_cmdBack);
 	THW_printf("\r\n");
 	THW_printf("Choice :  ");
-	THW_saveCurPos();
 }
-
-//------------------------------------------------------------------------------
-/// 								Refresh Thread
-//------------------------------------------------------------------------------
-static void thw_rfs_tsk_fn(void *arg)
-{
-	thw_refreshIsRunning = true;
-	while(thw_refreshIsRunning == true)
-	{
-		// Si mode refresh actif
-		if(thw_actualMenu.refreshFn != NULL){
-			THW_saveCurPos();				// Sauvegarde position curseur
-			thw_actualMenu.refreshFn();		// Execution fonction Refresh
-			THW_restoreCurPos();			// Restoration position curseur
-		}
-
-		// Période
-		if(thw_actualMenu.refreshPeriodInMs < 50)
-			osDelay(50);
-		else if (thw_actualMenu.refreshPeriodInMs > 2000)
-			osDelay(2000);
-		else
-			osDelay(thw_actualMenu.refreshPeriodInMs);
-	}
-	osThreadTerminate(thw_rfs_tsk_id);
-}
-
 
 //=============================================================================
 //						Externals Functions (API)
@@ -310,39 +264,6 @@ thw_status_t THW_printf(const char *fmt, ...)
 		thw_ctx.io->write(console_fmtBuf);
 	}
 	va_end(argp);
-	return THW_STATUS_OK;
-}
-
-
-/******************************************************************************
- ** Function name:		thw_startRefreshTask
- ** Descriptions:		Démarre la tâche Refresh
- ** parameters:			NA
- ** Returned value:		Status
- ******************************************************************************/
-static thw_status_t thw_startRefreshTask(void)
-{
-	if(thw_refreshIsRunning != true){
-		// Création de la tâche Refresh
-		//----------------------------------
-		thw_rfs_tsk_id = osThreadNew(thw_rfs_tsk_fn, NULL, &thw_rfs_tsk_attr);
-		if(thw_rfs_tsk_id == NULL){
-			return(THW_STATUS_ERROR);
-		}
-	}
-
-	return(THW_STATUS_OK);
-}
-
-/******************************************************************************
- ** Function name:		thw_stopRefreshTask
- ** Descriptions:		Arrêt de la tâche Refresh
- ** parameters:			NA
- ** Returned value:		Status
- ******************************************************************************/
-static thw_status_t thw_stopRefreshTask(void)
-{
-	thw_refreshIsRunning = false;
 	return THW_STATUS_OK;
 }
 
