@@ -103,8 +103,8 @@ static void thw_tsk_fn(void *argument)
 
 		// Get User Choice
 		//----------------------
-		if(thw_console_pollLine(console_rxBuffer, sizeof(console_rxBuffer)) == true){
-
+		if(thw_ctx.io->readLine(console_rxBuffer, sizeof(console_rxBuffer)) == true)
+		{
 			// 	Manage user Choice
 			//----------------------
 			userChoice = atoi((char*)console_rxBuffer);
