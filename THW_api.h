@@ -14,7 +14,7 @@
 
 #include <Config/APP.h>
 #include <Tools/serial_VT100.h>
-#include <Cmp/Console/console.h>
+#include <thw_status.h>
 #include <TestHardwareCore/include/thw_transport_if.h>
 #include <TestHardwareCore/interfaces/thw_io_if.h>
 
@@ -58,6 +58,8 @@ typedef enum{
 //----------------------------------------------------------------------
 extern void THW_displayActionMenu(st_thw_menuItem *pMenuItems, uint8_t menuItemsQty);
 
+thw_status_t THW_init(thw_io_if_t* io, void (*entryTestFn)(void*));
+
 // Definition de macros de gestion de l'ecran
 #define THW_printf(...)			THW_printf( __VA_ARGS__)
 #define THW_printfCL(...)		THW_printf(__VA_ARGS__ VT100_COLOR_RESET"\r\n")
@@ -74,11 +76,6 @@ extern void THW_displayActionMenu(st_thw_menuItem *pMenuItems, uint8_t menuItems
 extern st_thw_actualMenu thw_actualMenu;	// Structure sur le menu actuellement utilisé
 
 
-HAL_StatusTypeDef THW_init(thw_io_if_t* io, void (*entryTestFn)(void*));
 
-
-// For project with touchGfx, faking the system calls
-void MX_TouchGFX_Init(void);
-void MX_TouchGFX_PreOSInit(void);
 
 #endif /* TESTHARDWARECORE_THW_API_H_ */

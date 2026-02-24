@@ -51,8 +51,8 @@ const osThreadAttr_t thw_rfs_tsk_attr = {
 };
 static void thw_rfs_tsk_fn(void *arg);
 bool 		thw_refreshIsRunning = false;
-static HAL_StatusTypeDef thw_startRefreshTask(void);
-static HAL_StatusTypeDef thw_stopRefreshTask(void);
+static thw_status_t thw_startRefreshTask(void);
+static thw_status_t thw_stopRefreshTask(void);
 
 //------------------------------------------------------------------------------
 // MENU
@@ -263,19 +263,19 @@ static void thw_rfs_tsk_fn(void *arg)
  ** Function name:		THW_init
  ** Descriptions:		THW component Init
  ******************************************************************************/
-HAL_StatusTypeDef THW_init(thw_io_if_t* _io, void (*_entryTestFn)(void*))
+thw_status_t THW_init(thw_io_if_t* _io, void (*_entryTestFn)(void*))
 {
 	if(_io == NULL || _io->init == NULL || _io->readLine == NULL || _io->write == NULL)
-	    return HAL_ERROR;
+	    return THW_STATUS_ERROR;
 
 	if(!_io->init())
-	    return HAL_ERROR;
+	    return THW_STATUS_ERROR;
 
 	thw_ctx.io = _io;
 
 	// Check parameter
 	if (_entryTestFn == NULL)
-		return HAL_ERROR;
+		return THW_STATUS_ERROR;
 
     // Save entry function
     thw_entryTestFn = _entryTestFn;
@@ -283,10 +283,10 @@ HAL_StatusTypeDef THW_init(thw_io_if_t* _io, void (*_entryTestFn)(void*))
     	// Creating Task
 	thw_tsk_id = osThreadNew(thw_tsk_fn, NULL, &thw_tsk_attr);
 	if(thw_tsk_id == NULL){
-		return HAL_ERROR;
+		return THW_STATUS_ERROR;
 	}
 
-	return HAL_OK;
+	return THW_STATUS_OK;
 
 }
 
@@ -298,7 +298,7 @@ static char console_fmtBuf[256];
 /// \return HAL status
 /// \brief THW_printf: printf implementation for THW, using transport send function
 //-----------------------------------------------------------------------------
-HAL_StatusTypeDef THW_printf(const char *fmt, ...)
+thw_status_t THW_printf(const char *fmt, ...)
 {
 	va_list argp;
 
@@ -309,7 +309,7 @@ HAL_StatusTypeDef THW_printf(const char *fmt, ...)
 		thw_ctx.io->write(console_fmtBuf);
 	}
 	va_end(argp);
-	return HAL_OK;
+	return THW_STATUS_OK;
 }
 
 
@@ -319,18 +319,18 @@ HAL_StatusTypeDef THW_printf(const char *fmt, ...)
  ** parameters:			NA
  ** Returned value:		Status
  ******************************************************************************/
-static HAL_StatusTypeDef thw_startRefreshTask(void)
+static thw_status_t thw_startRefreshTask(void)
 {
 	if(thw_refreshIsRunning != true){
 		// Création de la tâche Refresh
 		//----------------------------------
 		thw_rfs_tsk_id = osThreadNew(thw_rfs_tsk_fn, NULL, &thw_rfs_tsk_attr);
 		if(thw_rfs_tsk_id == NULL){
-			return(HAL_ERROR);
+			return(THW_STATUS_ERROR);
 		}
 	}
 
-	return(HAL_OK);
+	return(THW_STATUS_OK);
 }
 
 /******************************************************************************
@@ -339,10 +339,10 @@ static HAL_StatusTypeDef thw_startRefreshTask(void)
  ** parameters:			NA
  ** Returned value:		Status
  ******************************************************************************/
-static HAL_StatusTypeDef thw_stopRefreshTask(void)
+static thw_status_t thw_stopRefreshTask(void)
 {
 	thw_refreshIsRunning = false;
-	return HAL_OK;
+	return THW_STATUS_OK;
 }
 
 
