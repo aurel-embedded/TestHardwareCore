@@ -30,17 +30,6 @@ static struct{
 }thw_ctx;
 
 
-//-----------------------------------------------------------------------------
-// THREAD RX
-//-----------------------------------------------------------------------------
-osThreadId_t thw_tsk_id;
-const osThreadAttr_t thw_tsk_attr = {
-		.name = "thw_tsk",
-		.stack_size = TSK_CFG__STACK__TSK_THW,
-		.priority = TSK_CFG__PRIO__TSK_THW,
-};
-static void thw_tsk_fn(void *arg);
-
 
 //------------------------------------------------------------------------------
 // MENU
@@ -54,86 +43,7 @@ static void displayMenuAction(void);
 // DEPENDENCY INJECTION
 //------------------------------------------------------------------------------
 static void (*thw_entryTestFn)(void*) = NULL;
-//=============================================================================
-//						Thread Functions
-//=============================================================================
-static void thw_tsk_fn(void *argument)
-{
-	uint32_t 	userChoice;
-	char rxLine[128];
 
-	THW_printf(VT100_NORMAL);
-
-	// Display Entry point
-	if (thw_entryTestFn != NULL)
-		thw_entryTestFn(NULL);
-	else
-	{
-		THW_printf("[THW] No entry point defined!\r\n");
-		return;
-	}
-
-	// Automatic Call onInit()
-	if (thw_actualMenu.onInit)
-		thw_actualMenu.onInit();
-
-	THW_clearScreen();
-	if(thw_actualMenu.displayMenu != NULL)
-		thw_actualMenu.displayMenu();
-	displayMenuAction();
-
-	while(1){
-		osDelay(100);
-
-		// Get User Choice
-		//----------------------
-		if(thw_ctx.io->readLine(rxLine, sizeof(rxLine)))
-		{
-			// 	Manage user Choice
-			//----------------------
-			userChoice = atoi(rxLine);
-
-			// Capture current menu reference before executing action
-			const void* prevMenuTab  = thw_actualMenu.menu.tab;
-			uint16_t    prevMenuSize = thw_actualMenu.menu.size;
-
-			// Execute user choice (may change menu via setActive)
-			manageChoice(userChoice);
-
-			// Detect if a new menu has been activated
-			bool menuChanged =
-					(prevMenuTab  != thw_actualMenu.menu.tab) ||
-					(prevMenuSize != thw_actualMenu.menu.size) ||
-					(userChoice == 0);
-
-			// Initialize Test
-			//----------------------
-			if (menuChanged && thw_actualMenu.onInit)
-				thw_actualMenu.onInit();
-
-			// 		Display
-			//----------------------
-			THW_clearScreen();
-			if(thw_actualMenu.displayMenu != NULL)
-				thw_actualMenu.displayMenu();
-			displayMenuAction();
-			THW_saveCurPos();
-		}
-
-		// Refresh auto if needed
-		if(thw_actualMenu.refreshFn != NULL)
-		{
-			uint32_t now = thw_ctx.time->getTickMs();
-		    if(now - thw_ctx.lastRefreshTick >= thw_actualMenu.refreshPeriodInMs)
-		    {
-		    	thw_ctx.lastRefreshTick = now;
-		    	THW_saveCurPos();
-		        thw_actualMenu.refreshFn();
-				THW_restoreCurPos();
-		    }
-		}
-	}
-}
 
 //------------------------------------------------------------------------------
 /// \brief Generic choice handler (called by ManageChoice or directly)
@@ -239,7 +149,6 @@ thw_status_t THW_init(thw_io_if_t* _io, thw_time_if_t* _time, void (*_entryTestF
 	thw_ctx.io = _io;
 	thw_ctx.time = _time;
 
-
 	// Check parameter
 	if (_entryTestFn == NULL)
 		return THW_STATUS_ERROR;
@@ -247,14 +156,7 @@ thw_status_t THW_init(thw_io_if_t* _io, thw_time_if_t* _time, void (*_entryTestF
     // Save entry function
     thw_entryTestFn = _entryTestFn;
 
-    	// Creating Task
-	thw_tsk_id = osThreadNew(thw_tsk_fn, NULL, &thw_tsk_attr);
-	if(thw_tsk_id == NULL){
-		return THW_STATUS_ERROR;
-	}
-
 	return THW_STATUS_OK;
-
 }
 
 static char console_fmtBuf[256];
@@ -279,5 +181,78 @@ thw_status_t THW_printf(const char *fmt, ...)
 	return THW_STATUS_OK;
 }
 
+//-----------------------------------------------------------------------------
+/// \fn     void THW_process(void)
+/// \brief  THW main process, to be called cyclically by the platform runner
+//-----------------------------------------------------------------------------
+void THW_process(void)
+{
+    static bool initialized = false;
+    static char rxLine[128];
+
+    if (!initialized)
+    {
+        THW_printf(VT100_NORMAL);
+
+        if (thw_entryTestFn)
+            thw_entryTestFn(NULL);
+
+        if (thw_actualMenu.onInit)
+            thw_actualMenu.onInit();
+
+        THW_clearScreen();
+
+        if (thw_actualMenu.displayMenu)
+            thw_actualMenu.displayMenu();
+
+        displayMenuAction();
+
+        thw_ctx.lastRefreshTick = thw_ctx.time->getTickMs();
+
+        initialized = true;
+    }
+
+    // --- Input
+    if (thw_ctx.io->readLine(rxLine, sizeof(rxLine)))
+    {
+        uint32_t userChoice = atoi(rxLine);
+
+        const void* prevMenuTab  = thw_actualMenu.menu.tab;
+        uint16_t    prevMenuSize = thw_actualMenu.menu.size;
+
+        manageChoice(userChoice);
+
+        bool menuChanged =
+            (prevMenuTab  != thw_actualMenu.menu.tab) ||
+            (prevMenuSize != thw_actualMenu.menu.size) ||
+            (userChoice == 0);
+
+        if (menuChanged && thw_actualMenu.onInit)
+            thw_actualMenu.onInit();
+
+        THW_clearScreen();
+
+        if (thw_actualMenu.displayMenu)
+            thw_actualMenu.displayMenu();
+
+        displayMenuAction();
+
+        thw_ctx.lastRefreshTick = thw_ctx.time->getTickMs();
+    }
+
+    // --- Refresh
+    if (thw_actualMenu.refreshFn)
+    {
+        uint32_t now = thw_ctx.time->getTickMs();
+
+        if (now - thw_ctx.lastRefreshTick >= thw_actualMenu.refreshPeriodInMs)
+        {
+            thw_ctx.lastRefreshTick = now;
+            THW_saveCurPos();
+            thw_actualMenu.refreshFn();
+            THW_restoreCurPos();
+        }
+    }
+}
 
 #endif //MODE_THW

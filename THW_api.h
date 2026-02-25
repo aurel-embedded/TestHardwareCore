@@ -59,8 +59,12 @@ typedef enum{
 //----------------------------------------------------------------------
 extern void THW_displayActionMenu(st_thw_menuItem *pMenuItems, uint8_t menuItemsQty);
 
-thw_status_t THW_init(thw_io_if_t* io, thw_time_if_t* time, void (*entryTestFn)(void*));
-thw_status_t THW_printf(const char *fmt, ...);
+extern st_thw_actualMenu thw_actualMenu;	// Structure sur le menu actuellement utilisé
+
+
+thw_status_t 	THW_init(thw_io_if_t* io, thw_time_if_t* time, void (*entryTestFn)(void*));
+thw_status_t 	THW_printf(const char *fmt, ...);
+void 			THW_process(void);
 
 // Definition de macros de gestion de l'ecran
 #define THW_printfCL(...)		THW_printf(__VA_ARGS__ VT100_COLOR_RESET"\r\n")
@@ -73,10 +77,5 @@ thw_status_t THW_printf(const char *fmt, ...);
 #define THW_xtermTitle(Name) 	THW_printf("\033]0;%s\007", Name)
 
 #define THW_Banner(Menu)	THW_printf(" %s (v%s) | %s\r\n", APP_SoftwareReference, APP_SoftwareVersion, Menu)
-
-extern st_thw_actualMenu thw_actualMenu;	// Structure sur le menu actuellement utilisé
-
-
-
 
 #endif /* TESTHARDWARECORE_THW_API_H_ */
