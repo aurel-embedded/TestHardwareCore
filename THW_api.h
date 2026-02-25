@@ -17,6 +17,7 @@
 #include <thw_status.h>
 #include <TestHardwareCore/include/thw_transport_if.h>
 #include <TestHardwareCore/interfaces/thw_io_if.h>
+#include <TestHardwareCore/interfaces/thw_time_if.h>
 
 //----------------------------------------------------------------------
 // MENU
@@ -58,7 +59,7 @@ typedef enum{
 //----------------------------------------------------------------------
 extern void THW_displayActionMenu(st_thw_menuItem *pMenuItems, uint8_t menuItemsQty);
 
-thw_status_t THW_init(thw_io_if_t* io, void (*entryTestFn)(void*));
+thw_status_t THW_init(thw_io_if_t* io, thw_time_if_t* time, void (*entryTestFn)(void*));
 thw_status_t THW_printf(const char *fmt, ...);
 
 // Definition de macros de gestion de l'ecran

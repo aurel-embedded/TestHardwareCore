@@ -1,3 +1,4 @@
+
 /*
  * THW.c
  *
@@ -13,14 +14,16 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-#include <TestHardwareCore/interfaces/thw_io_if.h>
 #include "THW_api.h"
 #include <Config/task_config.h>
+#include <TestHardwareCore/interfaces/thw_io_if.h>
+#include <TestHardwareCore/interfaces/thw_time_if.h>
 
 
 static struct{
 	// Dependency Injection
-	thw_io_if_t* io;
+	thw_io_if_t* 	io;
+	thw_time_if_t* 	time;
 
 	// Refresh Task management
 	uint32_t lastRefreshTick;
@@ -120,7 +123,7 @@ static void thw_tsk_fn(void *argument)
 		// Refresh auto if needed
 		if(thw_actualMenu.refreshFn != NULL)
 		{
-		    uint32_t now = osKernelGetTickCount();
+			uint32_t now = thw_ctx.time->getTickMs();
 		    if(now - thw_ctx.lastRefreshTick >= thw_actualMenu.refreshPeriodInMs)
 		    {
 		    	thw_ctx.lastRefreshTick = now;
@@ -218,15 +221,24 @@ static void displayMenuAction(void)
  ** Function name:		THW_init
  ** Descriptions:		THW component Init
  ******************************************************************************/
-thw_status_t THW_init(thw_io_if_t* _io, void (*_entryTestFn)(void*))
+thw_status_t THW_init(thw_io_if_t* _io, thw_time_if_t* _time, void (*_entryTestFn)(void*))
 {
+	// check io interface
 	if(_io == NULL || _io->init == NULL || _io->readLine == NULL || _io->write == NULL || _io->deinit == NULL)
 	    return THW_STATUS_ERROR;
 
+	// check time interface
+	if(_time == NULL || _time->getTickMs == NULL)
+	    return THW_STATUS_ERROR;
+
+	// init io interface
 	if(!_io->init())
 	    return THW_STATUS_ERROR;
 
+	// Dependency Injection
 	thw_ctx.io = _io;
+	thw_ctx.time = _time;
+
 
 	// Check parameter
 	if (_entryTestFn == NULL)
