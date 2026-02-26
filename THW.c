@@ -1,3 +1,4 @@
+
 /*
  * THW.c
  *
@@ -13,36 +14,34 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-#include <TestHardwareCore/interfaces/thw_io_if.h>
 #include "THW_api.h"
 #include <Config/task_config.h>
+#include <TestHardwareCore/interfaces/thw_io_if.h>
+#include <TestHardwareCore/interfaces/thw_time_if.h>
 
 
-static struct{
+static struct
+{
+	// Internal state
+	bool isStarted;
+
 	// Dependency Injection
-	thw_io_if_t* io;
+	thw_io_if_t* 	io;
+	thw_time_if_t* 	time;
 
 	// Refresh Task management
 	uint32_t lastRefreshTick;
+
+	// Menu management
+	st_thw_menu currentMenu;
+
 }thw_ctx;
 
-
-//-----------------------------------------------------------------------------
-// THREAD RX
-//-----------------------------------------------------------------------------
-osThreadId_t thw_tsk_id;
-const osThreadAttr_t thw_tsk_attr = {
-		.name = "thw_tsk",
-		.stack_size = TSK_CFG__STACK__TSK_THW,
-		.priority = TSK_CFG__PRIO__TSK_THW,
-};
-static void thw_tsk_fn(void *arg);
 
 
 //------------------------------------------------------------------------------
 // MENU
 //------------------------------------------------------------------------------
-st_thw_actualMenu thw_actualMenu;	// Structure sur le menu actuellement utilisé
 
 static void manageChoice(char code);
 static void displayMenuAction(void);
@@ -51,86 +50,7 @@ static void displayMenuAction(void);
 // DEPENDENCY INJECTION
 //------------------------------------------------------------------------------
 static void (*thw_entryTestFn)(void*) = NULL;
-//=============================================================================
-//						Thread Functions
-//=============================================================================
-static void thw_tsk_fn(void *argument)
-{
-	uint32_t 	userChoice;
-	char rxLine[128];
 
-	THW_printf(VT100_NORMAL);
-
-	// Display Entry point
-	if (thw_entryTestFn != NULL)
-		thw_entryTestFn(NULL);
-	else
-	{
-		THW_printf("[THW] No entry point defined!\r\n");
-		return;
-	}
-
-	// Automatic Call onInit()
-	if (thw_actualMenu.onInit)
-		thw_actualMenu.onInit();
-
-	THW_clearScreen();
-	if(thw_actualMenu.displayMenu != NULL)
-		thw_actualMenu.displayMenu();
-	displayMenuAction();
-
-	while(1){
-		osDelay(100);
-
-		// Get User Choice
-		//----------------------
-		if(thw_ctx.io->readLine(rxLine, sizeof(rxLine)))
-		{
-			// 	Manage user Choice
-			//----------------------
-			userChoice = atoi(rxLine);
-
-			// Capture current menu reference before executing action
-			const void* prevMenuTab  = thw_actualMenu.menu.tab;
-			uint16_t    prevMenuSize = thw_actualMenu.menu.size;
-
-			// Execute user choice (may change menu via setActive)
-			manageChoice(userChoice);
-
-			// Detect if a new menu has been activated
-			bool menuChanged =
-					(prevMenuTab  != thw_actualMenu.menu.tab) ||
-					(prevMenuSize != thw_actualMenu.menu.size) ||
-					(userChoice == 0);
-
-			// Initialize Test
-			//----------------------
-			if (menuChanged && thw_actualMenu.onInit)
-				thw_actualMenu.onInit();
-
-			// 		Display
-			//----------------------
-			THW_clearScreen();
-			if(thw_actualMenu.displayMenu != NULL)
-				thw_actualMenu.displayMenu();
-			displayMenuAction();
-			THW_saveCurPos();
-		}
-
-		// Refresh auto if needed
-		if(thw_actualMenu.refreshFn != NULL)
-		{
-		    uint32_t now = osKernelGetTickCount();
-		    if(now - thw_ctx.lastRefreshTick >= thw_actualMenu.refreshPeriodInMs)
-		    {
-		    	thw_ctx.lastRefreshTick = now;
-		    	THW_saveCurPos();
-		        thw_actualMenu.refreshFn();
-				THW_restoreCurPos();
-		    }
-		}
-	}
-}
 
 //------------------------------------------------------------------------------
 /// \brief Generic choice handler (called by ManageChoice or directly)
@@ -141,15 +61,15 @@ static void manageChoice(char code)
 	if (code == 0)
 	{
 		// Raz Refresh before setting new menu
-		thw_actualMenu.refreshFn = NULL;
+		thw_ctx.currentMenu.refreshFn = NULL;
 
 		// Call menu-specific exit handler if any
-		if (thw_actualMenu.onExit){
+		if (thw_ctx.currentMenu.onExit){
 			// Save onExit pointer
-			void (*onExit_save)(void) = thw_actualMenu.onExit;
+			void (*onExit_save)(void) = thw_ctx.currentMenu.onExit;
 
 			// Clear current menu to avoid re-entrance issues
-			memset(&thw_actualMenu, 0, sizeof(st_thw_actualMenu));
+			memset(&thw_ctx.currentMenu, 0, sizeof(st_thw_menu));
 
 			// Call onExit
 			onExit_save();
@@ -166,9 +86,9 @@ static void manageChoice(char code)
 	// Map visible choice number -> real index in menu.tab[]
 	uint16_t visibleIndex = 1;
 
-	for (uint16_t i = 0; i < thw_actualMenu.menu.size; i++)
+	for (uint16_t i = 0; i < thw_ctx.currentMenu.menu.size; i++)
 	{
-		const st_thw_menuItem* item = &thw_actualMenu.menu.tab[i];
+		const st_thw_menuItem* item = &thw_ctx.currentMenu.menu.tab[i];
 
 		if (item->pActionFn == NULL)
 			continue; // skip separators
@@ -192,13 +112,13 @@ static void manageChoice(char code)
 static void displayMenuAction(void)
 {
 	// --- Display generic Content ---
-	if (thw_actualMenu.menu.tab != NULL && thw_actualMenu.menu.size > 0)
+	if (thw_ctx.currentMenu.menu.tab != NULL && thw_ctx.currentMenu.menu.size > 0)
 	{
 		uint16_t actionIndex = 1;
-		for (uint16_t i = 0; i < thw_actualMenu.menu.size; i++)
+		for (uint16_t i = 0; i < thw_ctx.currentMenu.menu.size; i++)
 		{
-			if(thw_actualMenu.menu.tab[i].pActionFn != NULL){
-				THW_printf("%2d - %s\r\n", actionIndex, thw_actualMenu.menu.tab[i].name);
+			if(thw_ctx.currentMenu.menu.tab[i].pActionFn != NULL){
+				THW_printf("%2d - %s\r\n", actionIndex, thw_ctx.currentMenu.menu.tab[i].name);
 				actionIndex++;
 			}else{
 				THW_printf("\r\n");
@@ -214,35 +134,44 @@ static void displayMenuAction(void)
 //=============================================================================
 //						Externals Functions (API)
 //=============================================================================
-/******************************************************************************
- ** Function name:		THW_init
- ** Descriptions:		THW component Init
- ******************************************************************************/
-thw_status_t THW_init(thw_io_if_t* _io, void (*_entryTestFn)(void*))
+//-----------------------------------------------------------------------------
+/// \fn 		THW_init
+/// \param[in] _io : pointer to io interface struct (see thw_io_if_t)
+/// \param[in] _time : pointer to time interface struct (see thw_time_if_t)
+/// \param[in] _entryTestFn : pointer to test entry function, called at the first call of THW_process() to set the first menu
+/// \return HAL status
+/// \brief THW_init: initializes THW with provided dependencies and entry point
+//-----------------------------------------------------------------------------
+thw_status_t THW_init(thw_io_if_t* _io, thw_time_if_t* _time, void (*_entryTestFn)(void*))
 {
+	memset(&thw_ctx, 0, sizeof(thw_ctx));
+
+	thw_ctx.isStarted = false;
+
+	// check io interface
 	if(_io == NULL || _io->init == NULL || _io->readLine == NULL || _io->write == NULL || _io->deinit == NULL)
 	    return THW_STATUS_ERROR;
 
+	// check time interface
+	if(_time == NULL || _time->getTickMs == NULL)
+	    return THW_STATUS_ERROR;
+
+	// check entry function
+	if(_entryTestFn == NULL)
+	    return THW_STATUS_ERROR;
+
+	// init io interface
 	if(!_io->init())
 	    return THW_STATUS_ERROR;
 
+	// Dependency Injection
 	thw_ctx.io = _io;
-
-	// Check parameter
-	if (_entryTestFn == NULL)
-		return THW_STATUS_ERROR;
+	thw_ctx.time = _time;
 
     // Save entry function
     thw_entryTestFn = _entryTestFn;
 
-    	// Creating Task
-	thw_tsk_id = osThreadNew(thw_tsk_fn, NULL, &thw_tsk_attr);
-	if(thw_tsk_id == NULL){
-		return THW_STATUS_ERROR;
-	}
-
 	return THW_STATUS_OK;
-
 }
 
 static char console_fmtBuf[256];
@@ -265,6 +194,70 @@ thw_status_t THW_printf(const char *fmt, ...)
 	}
 	va_end(argp);
 	return THW_STATUS_OK;
+}
+
+//-----------------------------------------------------------------------------
+/// \fn     void THW_process(void)
+/// \brief  THW main process, to be called cyclically by the platform runner
+//-----------------------------------------------------------------------------
+void THW_process(void)
+{
+    static char rxLine[128];
+
+    if (!thw_ctx.isStarted)
+    {
+        THW_printf(VT100_NORMAL);
+
+        if (thw_entryTestFn)
+            thw_entryTestFn(NULL);
+
+        thw_ctx.isStarted = true;
+    }
+
+    // --- Input
+    if (thw_ctx.io->readLine(rxLine, sizeof(rxLine)))
+    {
+        uint32_t userChoice = atoi(rxLine);
+        manageChoice(userChoice);
+    }
+
+    // --- Refresh
+    if (thw_ctx.currentMenu.refreshFn)
+    {
+        uint32_t now = thw_ctx.time->getTickMs();
+
+        if (now - thw_ctx.lastRefreshTick >= thw_ctx.currentMenu.refreshPeriodInMs)
+        {
+            thw_ctx.lastRefreshTick = now;
+            THW_saveCurPos();
+            thw_ctx.currentMenu.refreshFn();
+            THW_restoreCurPos();
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
+/// \fn     void THW_setMenu(const st_thw_actualMenu* menu)
+/// \brief  THW menu setter, to be called by test code to set the current menu
+//-----------------------------------------------------------------------------
+void THW_setMenu(const st_thw_menu* menu)
+{
+    if (menu == NULL || menu->displayMenu == NULL)
+        return;
+
+    thw_ctx.currentMenu = *menu;
+
+    if (thw_ctx.currentMenu.onInit)
+        thw_ctx.currentMenu.onInit();
+
+    THW_clearScreen();
+
+    if (thw_ctx.currentMenu.displayMenu)
+        thw_ctx.currentMenu.displayMenu();
+
+    displayMenuAction();
+
+    thw_ctx.lastRefreshTick = thw_ctx.time->getTickMs();
 }
 
 
