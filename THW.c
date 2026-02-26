@@ -134,10 +134,14 @@ static void displayMenuAction(void)
 //=============================================================================
 //						Externals Functions (API)
 //=============================================================================
-/******************************************************************************
- ** Function name:		THW_init
- ** Descriptions:		THW component Init
- ******************************************************************************/
+//-----------------------------------------------------------------------------
+/// \fn 		THW_init
+/// \param[in] _io : pointer to io interface struct (see thw_io_if_t)
+/// \param[in] _time : pointer to time interface struct (see thw_time_if_t)
+/// \param[in] _entryTestFn : pointer to test entry function, called at the first call of THW_process() to set the first menu
+/// \return HAL status
+/// \brief THW_init: initializes THW with provided dependencies and entry point
+//-----------------------------------------------------------------------------
 thw_status_t THW_init(thw_io_if_t* _io, thw_time_if_t* _time, void (*_entryTestFn)(void*))
 {
 	memset(&thw_ctx, 0, sizeof(thw_ctx));
@@ -207,18 +211,6 @@ void THW_process(void)
         if (thw_entryTestFn)
             thw_entryTestFn(NULL);
 
-        if (thw_ctx.currentMenu.onInit)
-            thw_ctx.currentMenu.onInit();
-
-        THW_clearScreen();
-
-        if (thw_ctx.currentMenu.displayMenu)
-            thw_ctx.currentMenu.displayMenu();
-
-        displayMenuAction();
-
-        thw_ctx.lastRefreshTick = thw_ctx.time->getTickMs();
-
         thw_ctx.isStarted = true;
     }
 
@@ -226,28 +218,7 @@ void THW_process(void)
     if (thw_ctx.io->readLine(rxLine, sizeof(rxLine)))
     {
         uint32_t userChoice = atoi(rxLine);
-
-        const void* prevMenuTab  = thw_ctx.currentMenu.menu.tab;
-        uint16_t    prevMenuSize = thw_ctx.currentMenu.menu.size;
-
         manageChoice(userChoice);
-
-        bool menuChanged =
-            (prevMenuTab  != thw_ctx.currentMenu.menu.tab) ||
-            (prevMenuSize != thw_ctx.currentMenu.menu.size) ||
-            (userChoice == 0);
-
-        if (menuChanged && thw_ctx.currentMenu.onInit)
-            thw_ctx.currentMenu.onInit();
-
-        THW_clearScreen();
-
-        if (thw_ctx.currentMenu.displayMenu)
-            thw_ctx.currentMenu.displayMenu();
-
-        displayMenuAction();
-
-        thw_ctx.lastRefreshTick = thw_ctx.time->getTickMs();
     }
 
     // --- Refresh
@@ -264,7 +235,6 @@ void THW_process(void)
         }
     }
 }
-
 
 //-----------------------------------------------------------------------------
 /// \fn     void THW_setMenu(const st_thw_actualMenu* menu)
