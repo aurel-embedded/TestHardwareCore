@@ -40,7 +40,7 @@ typedef struct _st_thw_actualMenu{
     void 					(*onExit)(void);        	// Called when leaving the menu
 	void 					(*refreshFn)(void);			// Optional periodic refresh
 	uint16_t				refreshPeriodInMs;			// Refresh period in ms
-}st_thw_actualMenu;
+}st_thw_menu;
 
 // Commande commune à tous les menus
 typedef enum{
@@ -59,12 +59,12 @@ typedef enum{
 //----------------------------------------------------------------------
 extern void THW_displayActionMenu(st_thw_menuItem *pMenuItems, uint8_t menuItemsQty);
 
-extern st_thw_actualMenu thw_actualMenu;	// Structure sur le menu actuellement utilisé
-
 
 thw_status_t 	THW_init(thw_io_if_t* io, thw_time_if_t* time, void (*entryTestFn)(void*));
 thw_status_t 	THW_printf(const char *fmt, ...);
 void 			THW_process(void);
+void 			THW_setMenu(const st_thw_menu* menu);
+
 
 // Definition de macros de gestion de l'ecran
 #define THW_printfCL(...)		THW_printf(__VA_ARGS__ VT100_COLOR_RESET"\r\n")
